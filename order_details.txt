@@ -1,0 +1,112 @@
+<?php
+session_start();
+require 'db.php';  // ملف الاتصال بقاعدة البيانات
+
+// تحقق من تسجيل دخول المستخدم (مفترض أن user_id مخزن في الجلسة)
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$user_id = $_SESSION['user_id'];
+$order_id = $_GET['id'] ?? 0;
+
+if (!$order_id) {
+    echo "رقم الطلب غير صالح.";
+    exit;
+}
+
+// جلب بيانات الطلب مع التأكد أنه يخص المستخدم الحالي
+$stmt = $pdo->prepare("SELECT * FROM orders WHERE id = ? AND user_id = ?");
+$stmt->execute([$order_id, $user_id]);
+$order = $stmt->fetch();
+
+if (!$order) {
+    echo "الطلب غير موجود أو لا تملك صلاحية الاطلاع عليه.";
+    exit;
+}
+
+// فك تشفير تفاصيل الطلب (json)
+$order_details = json_decode($order['order_details'], true);
+
+if (!$order_details) {
+    echo "تفاصيل الطلب غير صالحة.";
+    exit;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تفاصيل الطلب #<?= htmlspecialchars($order['id']) ?></title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f9f9f9;
+    padding: 20px;
+    direction: rtl;
+    color: #333;
+  }
+  h1 {
+    color: #006699;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+  }
+  th, td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
+  }
+  th {
+    background-color: #006699;
+    color: white;
+  }
+  tr:hover {
+    background-color: #f1f1f1;
+  }
+</style>
+</head>
+<body>
+
+<h1>تفاصيل الطلب رقم #<?= htmlspecialchars($order['id']) ?></h1>
+<p>تاريخ الطلب: <?= htmlspecialchars($order['created_at']) ?></p>
+
+<table>
+<thead>
+<tr>
+  <th>اسم المنتج</th>
+  <th>الكمية</th>
+  <th>السعر للوحدة</th>
+  <th>الإجمالي</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($order_details as $item): ?>
+<tr>
+  <td><?= htmlspecialchars($item['product_name']) ?></td>
+  <td><?= (int)$item['quantity'] ?></td>
+  <td><?= number_format($item['price'], 2) ?> ر.س</td>
+  <td><?= number_format($item['price'] * $item['quantity'], 2) ?> ر.س</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+
+<p><strong>الإجمالي الكلي: </strong>
+<?php 
+$total = 0;
+foreach ($order_details as $item) {
+    $total += $item['price'] * $item['quantity'];
+}
+echo number_format($total, 2) . " ر.س";
+?>
+</p>
+
+<p><a href="orders.php">عودة إلى قائمة الطلبات</a></p>
+
+</body>
+</html>
